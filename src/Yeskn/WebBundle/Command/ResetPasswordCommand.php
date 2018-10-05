@@ -1,52 +1,71 @@
 <?php
 
-/*
- * This file is part of project yeskn/vmoex.
+/**
+ * This file is part of project yeskn-studio/wpcraft.
  *
- * (c) Jaggle <jaggle@yeskn.com>
- *
- * created at 2018-05-27 02:04:51
- *
- * For the full copyright and license information, please view the LICENSE
- * file that was distributed with this source code.
+ * Author: Jaggle
+ * Create: 2018-09-12 15:31:56
  */
 
 namespace Yeskn\WebBundle\Command;
 
-
+use Doctrine\Bundle\DoctrineBundle\Registry;
 use Symfony\Bundle\FrameworkBundle\Command\ContainerAwareCommand;
-use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
-use Yeskn\WebBundle\Entity\User;
+use Yeskn\WebBundle\Repository\UserRepository;
 
 class ResetPasswordCommand extends ContainerAwareCommand
 {
+    /** @var UserRepository */
+    private $userRepository;
+
+    /** @var Registry */
+    private $doctrine;
+
+    protected function init()
+    {
+        $this->doctrine = $this->getContainer()->get('doctrine');
+
+        $this->userRepository = $this->doctrine->getRepository('YesknWebBundle:User');
+    }
+
     protected function configure()
     {
-        $this->setName('reset-password');
-        $this->addArgument('username', InputArgument::REQUIRED, '帐号');
-        $this->addArgument('password', InputArgument::OPTIONAL, '新密码', '123456');
+        $this->setName('change-password');
+
+        $this->addOption('username', 'u', InputOption::VALUE_REQUIRED);
+        $this->addOption('password', 'p', InputOption::VALUE_REQUIRED);
     }
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $container = $this->getContainer();
-        $userRepository = $container->get('doctrine')->getRepository('YesknWebBundle:User');
-        /**
-         * @var User $user
-         */
-        $user = $userRepository->findOneBy(['username' => $input->getArgument('username')]);
+        $this->init();
 
-        $password = $container->get('security.password_encoder')
-            ->encodePassword($user, $user->getPassword());
-        $user->setPassword($password);
+        $username = $input->getOption('username');
+        $password = $input->getOption('password');
 
-        $container->get('doctrine')->getManager()->flush();
+        $user = $this->userRepository->loadUserByUsernameOrEmail($username);
 
-        $ss = new SymfonyStyle($input, $output);
+        $style = new SymfonyStyle($input, $output);
 
-        $ss->success('密码已重置');
+        if (empty($user)) {
+            $style->error(sprintf('user with username %s does not exist!', $username));
+            return ;
+        }
+
+        $encode = $this->getContainer()->get('security.password_encoder')
+            ->encodePassword($user, $password);
+
+        $user->setPassword($encode);
+
+        $this->doctrine->getManager()->flush();
+
+        $style->success(sprintf("the password for %s changed to : \n %s",
+            $username,
+            $password
+        ));
     }
 }

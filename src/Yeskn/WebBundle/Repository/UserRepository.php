@@ -13,6 +13,7 @@ namespace Yeskn\WebBundle\Repository;
 
 use Symfony\Bridge\Doctrine\Security\User\UserLoaderInterface;
 use Doctrine\ORM\EntityRepository;
+use Yeskn\WebBundle\Entity\User;
 
 class UserRepository extends EntityRepository implements UserLoaderInterface
 {
@@ -97,5 +98,31 @@ class UserRepository extends EntityRepository implements UserLoaderInterface
             ->getSingleScalarResult();
 
         return $count ?: 0;
+    }
+
+    /**
+     * @param $usernameOrEmail
+     * @return User|object
+     */
+    public function loadUserByUsernameOrEmail($usernameOrEmail)
+    {
+        if (preg_match('/^.+\@\S+\.\S+$/', $usernameOrEmail)) {
+            $user = $this->findUserByEmail($usernameOrEmail);
+            if (null !== $user) {
+                return $user;
+            }
+        }
+
+        return $this->findUserByUsername($usernameOrEmail);
+    }
+
+    public function findUserByEmail($email)
+    {
+        return $this->findOneBy(['email' => $email]);
+    }
+
+    public function findUserByUserName($username)
+    {
+        return $this->findOneBy(['username' => $username]);
     }
 }
